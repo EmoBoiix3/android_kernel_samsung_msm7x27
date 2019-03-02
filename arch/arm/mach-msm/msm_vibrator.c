@@ -55,6 +55,7 @@ static int is_vibe_on = 0;
 static int msm_vibrator_suspend(struct platform_device *pdev, pm_message_t state);
 static int msm_vibrator_resume(struct platform_device *pdev);
 static int msm_vibrator_probe(struct platform_device *pdev);
+static int msm_vibrator_exit(struct platform_device *pdev);
 static int msm_vibrator_power(int power_mode);
 
 
@@ -67,19 +68,13 @@ VibeInt32 g_nForce_32 = 0;
  * 
  */
 
-static int __devexit msm_vibrator_exit(struct platform_device *pdev)
-{
-		printk("[VIB] EXIT\n");
-		return 0;
-}
-
 /* for the suspend/resume VIBRATOR Module */
-static struct platform_driver msm_vibrator_platdrv = 
+static struct platform_driver msm_vibrator_platdriver = 
 {
 	.probe   = msm_vibrator_probe,
 	.suspend = msm_vibrator_suspend,
 	.resume  = msm_vibrator_resume,
-	.remove  = msm_vibrator_exit,
+	.remove  = __devexit_p(msm_vibrator_exit),
 	.driver = 
 	{
 			.name = MODULE_NAME,
@@ -126,7 +121,11 @@ static int msm_vibrator_resume(struct platform_device *pdev)
 	return VIBE_S_SUCCESS;
 }
 
-
+static int msm_vibrator_exit(struct platform_device *pdev)
+{
+		printk("[VIB] EXIT\n");
+		return 0;
+}
 
 static int msm_vibrator_power(int on)
 {
@@ -205,10 +204,12 @@ static void set_pmic_vibrator(int on)
 //	printk("[VIB] %s, input : %s\n",__func__,on ? "ON":"OFF");
 	if (on) {
 		clk_enable(android_vib_clk);
+		gpio_request(VIB_ON, NULL);
 		gpio_direction_output(VIB_ON, VIBRATION_ON);
 		is_vibe_on = 1;
 	} else {
 		if(is_vibe_on) {
+			gpio_request(VIB_ON, NULL);
 			gpio_direction_output(VIB_ON, VIBRATION_OFF);
 			clk_disable(android_vib_clk);
 			is_vibe_on = 0;
@@ -337,7 +338,7 @@ static struct timed_output_dev pmic_vibrator = {
 	.enable = vibrator_enable,
 };
 
-static int __devinit msm_vibrator_probe(struct platform_device *pdev)
+static int msm_vibrator_probe(struct platform_device *pdev)
 {
 	hrtimer_init(&vibe_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	vibe_timer.function = vibrator_timer_func;
@@ -376,7 +377,7 @@ static int __init msm_init_pmic_vibrator(void)
 {
 	int nRet;
 
-	nRet = platform_driver_register(&msm_vibrator_platdrv);
+	nRet = platform_driver_register(&msm_vibrator_platdriver);
 
 	printk("[VIB] platform driver register result : %d\n",nRet);
 	if (nRet)
@@ -390,7 +391,7 @@ static int __init msm_init_pmic_vibrator(void)
 
 static void __exit msm_exit_pmic_vibrator(void)
 {
-	platform_driver_unregister(&msm_vibrator_platdrv);
+	platform_driver_unregister(&msm_vibrator_platdriver);
 
 }
 
